@@ -25,6 +25,11 @@
 
 import dcc023_tp1
 
+FLAG = '0x7E' #Flag
+ADDS= '0xFF' #Address
+DCTRL = '0x03' #Control de dados
+CCTRL = '0x07' #Control de confirmação ACK
+
 class PPPSRT:
   
     def __init__(self, port, host='' ):
@@ -35,7 +40,7 @@ class PPPSRT:
         
 ####################################################################
 # A princípio, só é preciso alterar as duas funções a seguir.
-  
+    
     def send(self,message):
         # Aqui, PPSRT deve fazer:
         #   - fazer o encapsulamento de cada mensagem em um quadro PPP,
