@@ -290,14 +290,15 @@ class PPPSRT:
         
         while True: # Aguarda a confirmação
             ACK = self.link.recv(1500)
-            address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(ACK)
+            unescaped_ACK = Frame.get_package_unescaped(ACK)
+            address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_ACK)
             protocol_int = int.from_bytes(protocol_bytearray, 'big')
             if control == CCTRL and protocol_int == aux_protocol:
                 print("ACK:",ACK)
                 break
             else:
                 print("Retransmitting")
-                self.link.send(message)
+                self.link.send(escaped_message)
                 break
         
         self.protocol = format(aux_protocol, '04x') # Atualiza o protocolo
@@ -319,15 +320,14 @@ class PPPSRT:
         except TimeoutError: # use para tratar temporizações
             print("Timeout")
 
-        # Desencapsula o quadro
         unescaped_message = Frame.get_package_unescaped(frame)
-        print("unescaped_message:", unescaped_message)
         if len(unescaped_message) > 0:
-            address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_message)
+            print("unescaped_message:", unescaped_message)
+            address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_message)    # Desencapsula o quadro
             print("payload:", payload)
-            protocol_int = int.from_bytes(protocol_bytearray, 'big')
-            Frame.check_errors(address, control, protocol_bytearray, payload, checksum_int)
-            ACK = Frame.make_package_escaped(ADDS,CCTRL,protocol_int,bytearray())
+            protocol_int = int.from_bytes(protocol_bytearray, 'big') # Converte o protocolo para inteiro
+            Frame.check_errors(address, control, protocol_bytearray, payload, checksum_int) # Verifica se há erros no quadro
+            ACK = Frame.make_package_escaped(ADDS,CCTRL,protocol_int,bytearray())   # Cria o ACK
             self.link.send(ACK)
+            return payload
 
-        return unescaped_message
