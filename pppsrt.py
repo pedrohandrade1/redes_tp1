@@ -23,12 +23,21 @@
 # PPPSRT não pode utilizar a interface de sockets diretamente.
 ################################################################
 
+from typing import Protocol
 import dcc023_tp1
+import binascii
 
-FLAG = '0x7E' #Flag
-ADDS= '0xFF' #Address
-DCTRL = '0x03' #Control de dados
-CCTRL = '0x07' #Control de confirmação ACK
+FLAG = '7E' #Flag
+ADDS= 'FF' #Address
+DCTRL = '03' #Control de dados
+CCTRL = '07' #Control de confirmação ACK
+
+
+def encodeHex(message): # caracteres da mensagem para hexadecimal
+    return binascii.hexlify(message)
+
+def decodeHex(message): #  hexadecimal da mensagem para caracteres
+    return binascii.unhexlify(message)
 
 class PPPSRT:
   
@@ -40,8 +49,14 @@ class PPPSRT:
         
 ####################################################################
 # A princípio, só é preciso alterar as duas funções a seguir.
-    
+
+
     def send(self,message):
+        payload = encodeHex(message)
+        protocol = 'FFFF' # Não sei o que é ainda
+        message = (FLAG + ADDS + DCTRL + protocol).encode() + payload + FLAG.encode() #
+
+        print(message)
         # Aqui, PPSRT deve fazer:
         #   - fazer o encapsulamento de cada mensagem em um quadro PPP,
         #   - calcular o Checksum do quadro e incluído,
@@ -64,3 +79,11 @@ class PPPSRT:
         except TimeoutError: # use para tratar temporizações
             print("Timeout")
         return frame
+
+    # encrypt
+    def encode16(self, message):
+        return binascii.hexlify(message)
+
+    # decrypt
+    def decode16(self, message):
+        return binascii.unhexlify(message)
