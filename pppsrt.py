@@ -50,6 +50,8 @@ class Frame:
         package.append(address)
         package.append(control)
 
+        print("Protocolo:", protocol_int)
+
         protocol_bytearray = protocol_int.to_bytes(2, 'big')
         protocol_bytearray_escaped = ByteStuffing.escape(protocol_bytearray)
         package.extend(protocol_bytearray_escaped)
@@ -87,7 +89,7 @@ class Frame:
     
     # Obtem pacote sem escape
     def get_package_unescaped(escaped_package: bytearray):
-        return ByteStuffing.remove(escaped_package)
+        return ByteStuffing.unescape(escaped_package)
 
     # Obtem frame desconstruido
     def get_package_deconstructed(package_unescaped: bytearray):
@@ -105,6 +107,7 @@ class Frame:
         while i < frame_size - 3:
             byte = package_unescaped[i]
             payload.append(byte)
+            i += 1
         
         checksum_bytearray = bytearray()
         checksum_bytearray.append(package_unescaped[frame_size - 3])
@@ -249,10 +252,15 @@ class PPPSRT:
     def send(self,message):
         
         aux_protocol = int(self.protocol, 16)                   
-        aux_protocol += 1                                            # Incrementa o protocolo
-        payload = bytearray(encodeHex(message))                      # Codifica a mensagem em hexadecimal
-        message = Frame.make_package_escaped(ADDS,DCTRL,aux_protocol,payload)  # Cria o pacote
-        print(message)
+        aux_protocol += 1                                                               # Incrementa o protocolo
+        payload = bytearray(message)                                                    # Codifica a mensagem em hexadecimal
+        escaped_message = Frame.make_package_escaped(ADDS,DCTRL,aux_protocol,payload)   # Cria o pacote
+        print("escaped_message:", escaped_message)
+        unescaped_message = Frame.get_package_unescaped(escaped_message)
+        print("unescaped_message:", escaped_message)
+        control, protocol_int, payload, checksum_int = Frame.get_package_deconstructed(unescaped_message)
+        print("payload:", payload)
+
         # message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(checksum + FLAG, encoding= 'utf-8') #Monta o quadro
 
         # Aqui, PPSRT deve fazer:
