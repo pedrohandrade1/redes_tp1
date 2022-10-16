@@ -50,8 +50,6 @@ class Frame:
         package.append(address)
         package.append(control)
 
-        print("Protocolo:", protocol_int)
-
         protocol_bytearray = protocol_int.to_bytes(2, 'big')
         protocol_bytearray_escaped = ByteStuffing.escape(protocol_bytearray)
         package.extend(protocol_bytearray_escaped)
@@ -59,10 +57,15 @@ class Frame:
         payload_escaped = ByteStuffing.escape(payload)
         package.extend(payload_escaped)
 
-        package_copy = bytearray(package)
-        package_copy.append(Frame.FLAG)
+        checksum_entry = bytearray()
+        checksum_entry.append(Frame.FLAG)
+        checksum_entry.append(address)
+        checksum_entry.append(control)
+        checksum_entry.extend(protocol_bytearray)
+        checksum_entry.extend(payload)
+        checksum_entry.append(Frame.FLAG)
 
-        checksum_int = CheckSum.make(package_copy)
+        checksum_int = CheckSum.make(checksum_entry)
         checksum_bytearray = CheckSum.to_bytes(checksum_int)
         checksum_escaped = ByteStuffing.escape(checksum_bytearray)
         package.extend(checksum_escaped)
@@ -76,14 +79,15 @@ class Frame:
         started = False
 
         for byte in stream:
-            if byte == Frame.FLAG and not started:
-                started = True
+            if byte == Frame.FLAG:
+                if started:
+                    escaped_package.append(Frame.FLAG)
+                    return escaped_package
+                else:
+                    started = True
 
             if started:
                 escaped_package.append(byte)
-            
-            if byte == Frame.FLAG and started:
-                break
         
         return escaped_package
     
@@ -93,12 +97,12 @@ class Frame:
 
     # Obtem frame desconstruido
     def get_package_deconstructed(package_unescaped: bytearray):
+        address = package_unescaped[1]
         control = package_unescaped[2]
 
         protocol_bytearray  = bytearray()
         protocol_bytearray.append(package_unescaped[3])
         protocol_bytearray.append(package_unescaped[4])
-        protocol_int = int.from_bytes(protocol_bytearray, 'big')
 
         payload = bytearray()
 
@@ -115,8 +119,21 @@ class Frame:
 
         checksum_int = CheckSum.from_bytes(checksum_bytearray)
 
-        return control, protocol_int, payload, checksum_int
+        return address, control, protocol_bytearray, payload, checksum_int
+    
+    # Performa checksum para verificar errors
+    def check_errors(address, control, protocol_bytearray, payload, checksum_int):
+        checksum_entry = bytearray()
+        checksum_entry.append(Frame.FLAG)
+        checksum_entry.append(address)
+        checksum_entry.append(control)
+        checksum_entry.extend(protocol_bytearray)
+        checksum_entry.extend(payload)
+        checksum_entry.append(Frame.FLAG)
 
+        if not CheckSum.check(checksum_entry, checksum_int):
+            raise Exception("CheckSum error")
+        
 
 class CheckSum:
     
@@ -145,8 +162,8 @@ class CheckSum:
         return 65536 - sum
     
     # Confere o checksum
-    def check(package: bytearray):
-        sum = CheckSum.sum_package(package)
+    def check(package: bytearray, checksum: int):
+        sum = CheckSum.sum_package(package) + checksum
         return 65536 - sum == 0
 
     def to_bytes(checksum: int):
@@ -257,6 +274,11 @@ class PPPSRT:
         escaped_message = Frame.make_package_escaped(ADDS,DCTRL,aux_protocol,payload)   # Cria o pacote
         print("escaped_message:", escaped_message)
 
+        escaped_package = Frame.get_package_escaped(escaped_message)
+        print("escaped_package:", escaped_package)
+
+
+        # message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(checksum + FLAG, encoding= 'utf-8') #Monta o quadro
 
         # Aqui, PPSRT deve fazer:
         #   - fazer o encapsulamento de cada mensagem em um quadro PPP,
@@ -268,7 +290,8 @@ class PPPSRT:
         
         while True: # Aguarda a confirmação
             ACK = self.link.recv(1500)
-            control, protocol_int, payload, checksum_int = Frame.get_package_deconstructed(ACK)
+            address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(ACK)
+            protocol_int = int.from_bytes(protocol_bytearray, 'big')
             if control == CCTRL and protocol_int == aux_protocol:
                 print("ACK:",ACK)
                 break
@@ -277,7 +300,7 @@ class PPPSRT:
                 self.link.send(message)
                 break
         
-        self.protocol = format(aux_protocol, '04x') # Atualiza o protocolo
+        # self.protocol = format(aux_protocol, '04x') # Atualiza o protocolo
 
 
 
@@ -300,8 +323,10 @@ class PPPSRT:
         unescaped_message = Frame.get_package_unescaped(frame)
         print("unescaped_message:", unescaped_message)
         if len(unescaped_message) > 0:
-            control, protocol_int, payload, checksum_int = Frame.get_package_deconstructed(unescaped_message)
+            address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_message)
             print("payload:", payload)
+            protocol_int = int.from_bytes(protocol_bytearray, 'big')
+            Frame.check_errors(address, control, protocol_bytearray, payload, checksum_int)
             ACK = Frame.make_package_escaped(ADDS,CCTRL,protocol_int,bytearray())
             self.link.send(ACK)
 
