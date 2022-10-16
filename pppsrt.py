@@ -27,10 +27,10 @@ import dcc023_tp1
 import binascii
 import time
 
-FLAG = '7E' #Flag
-ADDS= 'FF' #Address
-DCTRL = '03' #Control de dados
-CCTRL = '07' #Control de confirmação ACK
+FLAG = 0x7E #Flag
+ADDS= 0xFF #Address
+DCTRL = 0x03 #Control de dados
+CCTRL = 0x07 #Control de confirmação ACK
 
 
 def encodeHex(message): # caracteres da mensagem para hexadecimal
@@ -138,12 +138,12 @@ class CheckSum:
 
     # Calcula o checksum
     def make(package: bytearray):
-        sum = CheckSum.sum_frame(package)
+        sum = CheckSum.sum_package(package)
         return 65536 - sum
     
     # Confere o checksum
     def check(package: bytearray):
-        sum = CheckSum.sum_frame(package)
+        sum = CheckSum.sum_package(package)
         return 65536 - sum == 0
 
     def to_bytes(checksum: int):
@@ -249,15 +249,11 @@ class PPPSRT:
     def send(self,message):
         
         aux_protocol = int(self.protocol, 16)                   
-        aux_protocol += 1                                       # Incrementa o protocolo
-        self.protocol = '{:04x}'.format(aux_protocol)           # Formata como string hexadecimal
-
-        payload = encodeHex(message)                            # Codifica a mensagem em hexadecimal
-
-        checksum = CheckSum.make(payload)                       # Calcula o checksum
-        checksum = '{:04x}'.format(checksum)                    # Formata como string hexadecimal
-
-        message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(checksum + FLAG, encoding= 'utf-8') #Monta o quadro
+        aux_protocol += 1                                            # Incrementa o protocolo
+        payload = bytearray(encodeHex(message))                      # Codifica a mensagem em hexadecimal
+        message = Frame.make_package_escaped(ADDS,DCTRL,aux_protocol,payload)  # Cria o pacote
+        print(message)
+        # message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(checksum + FLAG, encoding= 'utf-8') #Monta o quadro
 
         # Aqui, PPSRT deve fazer:
         #   - fazer o encapsulamento de cada mensagem em um quadro PPP,
