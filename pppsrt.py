@@ -300,7 +300,7 @@ class PPPSRT:
                 self.link.send(message)
                 break
         
-        # self.protocol = format(aux_protocol, '04x') # Atualiza o protocolo
+        self.protocol = format(aux_protocol, '04x') # Atualiza o protocolo
 
 
 
