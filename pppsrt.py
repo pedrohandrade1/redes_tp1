@@ -76,14 +76,15 @@ class Frame:
         started = False
 
         for byte in stream:
-            if byte == Frame.FLAG and not started:
-                started = True
+            if byte == Frame.FLAG:
+                if started:
+                    escaped_package.append(Frame.FLAG)
+                    return escaped_package
+                else:
+                    started = True
 
             if started:
                 escaped_package.append(byte)
-            
-            if byte == Frame.FLAG and started:
-                break
         
         return escaped_package
     
@@ -256,9 +257,11 @@ class PPPSRT:
         payload = bytearray(message)                                                    # Codifica a mensagem em hexadecimal
         escaped_message = Frame.make_package_escaped(ADDS,DCTRL,aux_protocol,payload)   # Cria o pacote
         print("escaped_message:", escaped_message)
-        unescaped_message = Frame.get_package_unescaped(escaped_message)
-        print("unescaped_message:", escaped_message)
-        control, protocol_int, payload, checksum_int = Frame.get_package_deconstructed(unescaped_message)
+        escaped_package = Frame.get_package_escaped(escaped_message)
+        print("escaped_package:", escaped_package)
+        unescaped_package = Frame.get_package_unescaped(escaped_package)
+        print("unescaped_package:", unescaped_package)
+        control, protocol_int, payload, checksum_int = Frame.get_package_deconstructed(unescaped_package)
         print("payload:", payload)
 
         # message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(checksum + FLAG, encoding= 'utf-8') #Monta o quadro
