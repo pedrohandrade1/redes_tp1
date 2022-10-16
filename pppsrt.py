@@ -209,8 +209,7 @@ class ByteStuffing:
             package.append(ByteStuffing.FLAG)
 
         else:
-            False
-            # error
+            raise Exception("unescape especial byte error")
 
     # Adiciona o escapamento ao frame
     def escape(package: bytearray):
