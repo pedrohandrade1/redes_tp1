@@ -46,7 +46,7 @@ class Frame:
     # Cria pacote escapado
     def make_package_escaped(address, control, protocol_int: int, payload: bytearray):
         package = bytearray()
-        package.append(FLAG)
+        package.append(Frame.FLAG)
         package.append(address)
         package.append(control)
 
@@ -58,14 +58,14 @@ class Frame:
         package.extend(payload_escaped)
 
         package_copy = bytearray(package)
-        package_copy.append(FLAG)
+        package_copy.append(Frame.FLAG)
 
         checksum_int = Checksum.make(package_copy)
         checksum_bytearray = Checksum.to_bytes(checksum_int)
         checksum_escaped = ByteStuffing.escape(checksum_bytearray)
         package.extend(checksum_escaped)
 
-        package.append(FLAG)
+        package.append(Frame.FLAG)
         return package
         
     # Obtem pacote escapado
