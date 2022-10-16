@@ -39,6 +39,118 @@ def encodeHex(message): # caracteres da mensagem para hexadecimal
 def decodeHex(message): #  hexadecimal da mensagem para caracteres
     return binascii.unhexlify(message)
 
+class CheckSum:
+    
+    # Soma os bytes de um frame para int 16 bits
+    def sum_frame(frame: bytearray):
+        even = True
+
+        sum = 0
+        for byte in frame:
+
+            if even:
+                sum += byte
+            else:
+                sum += byte * 256
+            
+            if sum > 65535:
+                sum = (sum % 65536) + 1
+
+            even = not even
+            
+        return sum 
+
+    # Calcula o checksum
+    def make(frame: bytearray):
+        sum = CheckSum.sum_frame(frame)
+        return 65536 - sum
+    
+    # Confere o checksum
+    def check(frame: bytearray, checksum):
+        sum = CheckSum.sum_frame(frame) + checksum
+        return 65536 - sum == 0
+
+class ByteStuffing:
+
+    ESCAPE = 0x7d
+    FLAG = 0x7e
+
+    ESCAPE_SUBS = 0x5d
+    FLAG_SUBS = 0x5e
+
+    # Escapa algum byte se necessario
+    def escape_byte(escaped_frame: bytearray, byte):
+        # Escapa o byte de escape
+        if byte == ByteStuffing.ESCAPE:
+            escaped_frame.append(ByteStuffing.ESCAPE)
+            escaped_frame.append(ByteStuffing.ESCAPE_SUBS)
+
+        # Escapa o byte de flag
+        elif byte == ByteStuffing.FLAG:
+            escaped_frame.append(ByteStuffing.ESCAPE)
+            escaped_frame.append(ByteStuffing.FLAG_SUBS)
+
+        # Não é necessário fazer escape
+        else:
+            escaped_frame.append(byte)
+
+    # Remove o escape de algum byte especial
+    def unescape_especial_byte(frame: bytearray, byte):
+        # Remove escape de byte de escape
+        if byte == ByteStuffing.ESCAPE_SUBS:
+            frame.append(ByteStuffing.ESCAPE)
+
+        # Remove escape de byte de flag
+        elif byte == ByteStuffing.FLAG_SUBS:
+            frame.append(ByteStuffing.FLAG)
+
+        else:
+            False
+            # error
+
+    # Adiciona o escapamento ao frame
+    def add(frame: bytearray):
+        # Sequencia de bytes escapada vazia
+        escaped_frame = bytearray()
+
+        # Verifica para cada byte do Payload se é necessário escapar o byte
+        for byte in frame:
+            ByteStuffing.escape_byte(escaped_frame, byte)
+        
+        return escaped_frame
+
+    # Remove o escapamento de um frame
+    def remove(escaped_frame: bytearray):
+        # Sequencia de bytes vazia
+        frame = bytearray()
+
+        i = 0
+        size = len(escaped_frame)
+
+        while(i < size):
+
+            byte = escaped_frame[i]
+
+            # Byte especial
+            if byte == ByteStuffing.ESCAPE:
+
+                if i < size - 1:
+                    next_byte = escaped_frame[i + 1]
+                    ByteStuffing.unescape_especial_byte(frame, next_byte)
+                    i += 2
+
+                else:
+                    False
+                    # error
+
+            # Byte qualquer
+            else:
+                frame.append(byte)
+                i += 1
+        
+        return frame
+
+
 class PPPSRT:
   
     def __init__(self, port, host='' ):
