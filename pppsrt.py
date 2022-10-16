@@ -39,14 +39,90 @@ def encodeHex(message): # caracteres da mensagem para hexadecimal
 def decodeHex(message): #  hexadecimal da mensagem para caracteres
     return binascii.unhexlify(message)
 
+class Frame:
+
+    FLAG = 0x7e
+
+    # Cria pacote escapado
+    def make_package_escaped(address, control, protocol_int: int, payload: bytearray):
+        package = bytearray()
+        package.append(FLAG)
+        package.append(address)
+        package.append(control)
+
+        protocol_bytearray = protocol_int.to_bytes(2, 'big')
+        protocol_bytearray_escaped = ByteStuffing.escape(protocol_bytearray)
+        package.extend(protocol_bytearray_escaped)
+
+        payload_escaped = ByteStuffing.escape(payload)
+        package.extend(payload_escaped)
+
+        package_copy = bytearray(package)
+        package_copy.append(FLAG)
+
+        checksum_int = Checksum.make(package_copy)
+        checksum_bytearray = Checksum.to_bytes(checksum_int)
+        checksum_escaped = ByteStuffing.escape(checksum_bytearray)
+        package.extend(checksum_escaped)
+
+        package.append(FLAG)
+        return package
+        
+    # Obtem pacote escapado
+    def get_package_escaped(stream: bytearray):
+        escaped_package = bytearray()
+        started = False
+
+        for byte in stream:
+            if byte == Frame.FLAG and not started:
+                started = True
+
+            if started:
+                escaped_package.append(byte)
+            
+            if byte == Frame.FLAG and started:
+                break
+        
+        return escaped_package
+    
+    # Obtem pacote sem escape
+    def get_package_unescaped(escaped_package: bytearray):
+        return ByteStuffing.remove(escaped_package)
+
+    # Obtem frame desconstruido
+    def get_package_deconstructed(package_unescaped: bytearray):
+        control = package_unescaped[2]
+
+        protocol_bytearray  = bytearray()
+        protocol_bytearray.append(package_unescaped[3])
+        protocol_bytearray.append(package_unescaped[4])
+        protocol_int = int.from_bytes(protocol_bytearray, 'big')
+
+        payload = bytearray()
+
+        frame_size = len(package_unescaped)
+        i = 5
+        while i < frame_size - 3:
+            byte = package_unescaped[i]
+            payload.append(byte)
+        
+        checksum_bytearray = bytearray()
+        checksum_bytearray.append(package_unescaped[frame_size - 3])
+        checksum_bytearray.append(package_unescaped[frame_size - 2])
+
+        checksum_int = CheckSum.from_bytes(checksum_bytearray)
+
+        return control, protocol_int, payload, checksum_int
+
+
 class CheckSum:
     
-    # Soma os bytes de um frame para int 16 bits
-    def sum_frame(frame: bytearray):
+    # Soma os bytes de um pacote para int 16 bits
+    def sum_package(package: bytearray):
         even = True
 
         sum = 0
-        for byte in frame:
+        for byte in package:
 
             if even:
                 sum += byte
@@ -61,14 +137,20 @@ class CheckSum:
         return sum 
 
     # Calcula o checksum
-    def make(frame: bytearray):
-        sum = CheckSum.sum_frame(frame)
+    def make(package: bytearray):
+        sum = CheckSum.sum_frame(package)
         return 65536 - sum
     
     # Confere o checksum
-    def check(frame: bytearray, checksum):
-        sum = CheckSum.sum_frame(frame) + checksum
+    def check(package: bytearray):
+        sum = CheckSum.sum_frame(package)
         return 65536 - sum == 0
+
+    def to_bytes(checksum: int):
+        return checksum.to_bytes(2, 'big')
+    
+    def from_bytes(checksum: bytearray):
+        return int.from_bytes(checksum, 'big')
 
 class ByteStuffing:
 
@@ -79,64 +161,64 @@ class ByteStuffing:
     FLAG_SUBS = 0x5e
 
     # Escapa algum byte se necessario
-    def escape_byte(escaped_frame: bytearray, byte):
+    def escape_byte(escaped_package: bytearray, byte):
         # Escapa o byte de escape
         if byte == ByteStuffing.ESCAPE:
-            escaped_frame.append(ByteStuffing.ESCAPE)
-            escaped_frame.append(ByteStuffing.ESCAPE_SUBS)
+            escaped_package.append(ByteStuffing.ESCAPE)
+            escaped_package.append(ByteStuffing.ESCAPE_SUBS)
 
         # Escapa o byte de flag
         elif byte == ByteStuffing.FLAG:
-            escaped_frame.append(ByteStuffing.ESCAPE)
-            escaped_frame.append(ByteStuffing.FLAG_SUBS)
+            escaped_package.append(ByteStuffing.ESCAPE)
+            escaped_package.append(ByteStuffing.FLAG_SUBS)
 
         # Não é necessário fazer escape
         else:
-            escaped_frame.append(byte)
+            escaped_package.append(byte)
 
     # Remove o escape de algum byte especial
-    def unescape_especial_byte(frame: bytearray, byte):
+    def unescape_especial_byte(package: bytearray, byte):
         # Remove escape de byte de escape
         if byte == ByteStuffing.ESCAPE_SUBS:
-            frame.append(ByteStuffing.ESCAPE)
+            package.append(ByteStuffing.ESCAPE)
 
         # Remove escape de byte de flag
         elif byte == ByteStuffing.FLAG_SUBS:
-            frame.append(ByteStuffing.FLAG)
+            package.append(ByteStuffing.FLAG)
 
         else:
             False
             # error
 
     # Adiciona o escapamento ao frame
-    def add(frame: bytearray):
+    def escape(package: bytearray):
         # Sequencia de bytes escapada vazia
-        escaped_frame = bytearray()
+        escaped_package = bytearray()
 
         # Verifica para cada byte do Payload se é necessário escapar o byte
         for byte in frame:
-            ByteStuffing.escape_byte(escaped_frame, byte)
+            ByteStuffing.escape_byte(escaped_package, byte)
         
-        return escaped_frame
+        return escaped_package
 
     # Remove o escapamento de um frame
-    def remove(escaped_frame: bytearray):
+    def unescape(escaped_package: bytearray):
         # Sequencia de bytes vazia
-        frame = bytearray()
+        package = bytearray()
 
         i = 0
-        size = len(escaped_frame)
+        size = len(escaped_package)
 
         while(i < size):
 
-            byte = escaped_frame[i]
+            byte = escaped_package[i]
 
             # Byte especial
             if byte == ByteStuffing.ESCAPE:
 
                 if i < size - 1:
-                    next_byte = escaped_frame[i + 1]
-                    ByteStuffing.unescape_especial_byte(frame, next_byte)
+                    next_byte = escaped_package[i + 1]
+                    ByteStuffing.unescape_especial_byte(package, next_byte)
                     i += 2
 
                 else:
@@ -145,10 +227,10 @@ class ByteStuffing:
 
             # Byte qualquer
             else:
-                frame.append(byte)
+                package.append(byte)
                 i += 1
         
-        return frame
+        return package
 
 
 class PPPSRT:
