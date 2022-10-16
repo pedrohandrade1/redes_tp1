@@ -155,7 +155,7 @@ class PPPSRT:
   
     def __init__(self, port, host='' ):
         self.link = dcc023_tp1.Link(port,host)
-        self.protocol = b'0000'
+        self.protocol = bytearray('0000', encoding= 'utf-8')
 
     def close(self):
         self.link.close()
@@ -169,10 +169,10 @@ class PPPSRT:
         aux_protocol = int(self.protocol, 16)                   
         aux_protocol += 1                                       # Incrementa o protocolo
         self.protocol = '{:04x}'.format(aux_protocol)           # Formata como string hexadecimal
-        
         payload = encodeHex(message)
-        message = (FLAG + ADDS + DCTRL + self.protocol).encode() + payload + FLAG.encode() #Monta o quadro
-
+        # checksum = ///
+        message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(FLAG, encoding= 'utf-8')#Monta o quadro
+        print(message)
         # Aqui, PPSRT deve fazer:
         #   - fazer o encapsulamento de cada mensagem em um quadro PPP,
         #   - calcular o Checksum do quadro e incluído,
@@ -180,6 +180,8 @@ class PPPSRT:
         #   - aguardar pela mensagem de confirmação,
         #   - retransmitir a mensagem se a confirmação não chegar.
         self.link.send(message)
+
+
 
     def recv(self):
         # Aqui, PPSRT deve fazer:
