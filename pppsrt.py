@@ -50,8 +50,6 @@ class Frame:
         package.append(address)
         package.append(control)
 
-        print("Protocolo:", protocol_int)
-
         protocol_bytearray = protocol_int.to_bytes(2, 'big')
         protocol_bytearray_escaped = ByteStuffing.escape(protocol_bytearray)
         package.extend(protocol_bytearray_escaped)
@@ -59,10 +57,15 @@ class Frame:
         payload_escaped = ByteStuffing.escape(payload)
         package.extend(payload_escaped)
 
-        package_copy = bytearray(package)
-        package_copy.append(Frame.FLAG)
+        checksum_entry = bytearray()
+        checksum_entry.append(Frame.FLAG)
+        checksum_entry.append(address)
+        checksum_entry.append(control)
+        checksum_entry.extend(protocol_bytearray)
+        checksum_entry.extend(payload)
+        checksum_entry.append(Frame.FLAG)
 
-        checksum_int = CheckSum.make(package_copy)
+        checksum_int = CheckSum.make(checksum_entry)
         checksum_bytearray = CheckSum.to_bytes(checksum_int)
         checksum_escaped = ByteStuffing.escape(checksum_bytearray)
         package.extend(checksum_escaped)
@@ -94,12 +97,12 @@ class Frame:
 
     # Obtem frame desconstruido
     def get_package_deconstructed(package_unescaped: bytearray):
+        address = package_unescaped[1]
         control = package_unescaped[2]
 
         protocol_bytearray  = bytearray()
         protocol_bytearray.append(package_unescaped[3])
         protocol_bytearray.append(package_unescaped[4])
-        protocol_int = int.from_bytes(protocol_bytearray, 'big')
 
         payload = bytearray()
 
@@ -116,8 +119,21 @@ class Frame:
 
         checksum_int = CheckSum.from_bytes(checksum_bytearray)
 
-        return control, protocol_int, payload, checksum_int
+        return address, control, protocol_bytearray, payload, checksum_int
+    
+    # Performa checksum para verificar errors
+    def check_errors(address, control, protocol_bytearray, payload, checksum_int):
+        checksum_entry = bytearray()
+        checksum_entry.append(Frame.FLAG)
+        checksum_entry.append(address)
+        checksum_entry.append(control)
+        checksum_entry.extend(protocol_bytearray)
+        checksum_entry.extend(payload)
+        checksum_entry.append(Frame.FLAG)
 
+        if not CheckSum.check(checksum_entry, checksum_int):
+            raise Exception("CheckSum error")
+        
 
 class CheckSum:
     
@@ -146,8 +162,8 @@ class CheckSum:
         return 65536 - sum
     
     # Confere o checksum
-    def check(package: bytearray):
-        sum = CheckSum.sum_package(package)
+    def check(package: bytearray, checksum: int):
+        sum = CheckSum.sum_package(package) + checksum
         return 65536 - sum == 0
 
     def to_bytes(checksum: int):
@@ -261,8 +277,10 @@ class PPPSRT:
         print("escaped_package:", escaped_package)
         unescaped_package = Frame.get_package_unescaped(escaped_package)
         print("unescaped_package:", unescaped_package)
-        control, protocol_int, payload, checksum_int = Frame.get_package_deconstructed(unescaped_package)
+        address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_package)
         print("payload:", payload)
+
+        Frame.check_errors(address, control, protocol_bytearray, payload, checksum_int)
 
         # message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(checksum + FLAG, encoding= 'utf-8') #Monta o quadro
 
