@@ -60,8 +60,8 @@ class Frame:
         package_copy = bytearray(package)
         package_copy.append(Frame.FLAG)
 
-        checksum_int = Checksum.make(package_copy)
-        checksum_bytearray = Checksum.to_bytes(checksum_int)
+        checksum_int = CheckSum.make(package_copy)
+        checksum_bytearray = CheckSum.to_bytes(checksum_int)
         checksum_escaped = ByteStuffing.escape(checksum_bytearray)
         package.extend(checksum_escaped)
 
@@ -196,7 +196,7 @@ class ByteStuffing:
         escaped_package = bytearray()
 
         # Verifica para cada byte do Payload se é necessário escapar o byte
-        for byte in frame:
+        for byte in package:
             ByteStuffing.escape_byte(escaped_package, byte)
         
         return escaped_package
