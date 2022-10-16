@@ -23,9 +23,9 @@
 # PPPSRT não pode utilizar a interface de sockets diretamente.
 ################################################################
 
-from typing import Protocol
 import dcc023_tp1
 import binascii
+import time
 
 FLAG = '7E' #Flag
 ADDS= 'FF' #Address
@@ -43,6 +43,7 @@ class PPPSRT:
   
     def __init__(self, port, host='' ):
         self.link = dcc023_tp1.Link(port,host)
+        self.protocol = b'0000'
 
     def close(self):
         self.link.close()
@@ -52,11 +53,14 @@ class PPPSRT:
 
 
     def send(self,message):
+        
+        aux_protocol = int(self.protocol, 16)                   
+        aux_protocol += 1                                       # Incrementa o protocolo
+        self.protocol = '{:04x}'.format(aux_protocol)           # Formata como string hexadecimal
+        
         payload = encodeHex(message)
-        protocol = 'FFFF' # Não sei o que é ainda
-        message = (FLAG + ADDS + DCTRL + protocol).encode() + payload + FLAG.encode() #
+        message = (FLAG + ADDS + DCTRL + self.protocol).encode() + payload + FLAG.encode() #Monta o quadro
 
-        print(message)
         # Aqui, PPSRT deve fazer:
         #   - fazer o encapsulamento de cada mensagem em um quadro PPP,
         #   - calcular o Checksum do quadro e incluído,
@@ -79,11 +83,3 @@ class PPPSRT:
         except TimeoutError: # use para tratar temporizações
             print("Timeout")
         return frame
-
-    # encrypt
-    def encode16(self, message):
-        return binascii.hexlify(message)
-
-    # decrypt
-    def decode16(self, message):
-        return binascii.unhexlify(message)
