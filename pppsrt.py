@@ -26,6 +26,7 @@
 from operator import le
 import dcc023_tp1
 import binascii
+import random
 import time
 
 FLAG = 0x7E #Flag
@@ -273,8 +274,7 @@ class PPPSRT:
         aux_protocol += 1                                                               # Incrementa o protocolo
         payload = bytearray(message)                                                    # Codifica a mensagem em hexadecimal
         escaped_message = Frame.make_package_escaped(ADDS,DCTRL,aux_protocol,payload)   # Cria o pacote
-        escaped_package = Frame.get_package_escaped(escaped_message)
-        print("escaped_package:", escaped_package)
+        print("escaped_package:", escaped_message)
 
 
         # message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(checksum + FLAG, encoding= 'utf-8') #Monta o quadro
@@ -289,7 +289,8 @@ class PPPSRT:
         
         while True: # Aguarda a confirmação
             ACK = self.link.recv(1500)
-            unescaped_ACK = Frame.get_package_unescaped(ACK)
+            escaped_ACK = Frame.get_package_escaped(ACK)
+            unescaped_ACK = Frame.get_package_unescaped(escaped_ACK)
             address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_ACK)
             protocol_int = int.from_bytes(protocol_bytearray, 'big')
 
@@ -319,24 +320,26 @@ class PPPSRT:
         except TimeoutError: # use para tratar temporizações
             print("Timeout")
 
-        unescaped_message = Frame.get_package_unescaped(frame)
-        # if len(unescaped_message) > 0:
-        # print("unescaped_message:", unescaped_message)
-        address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_message)    # Desencapsula o quadro
-        # print("payload:", payload)
-        protocol_int = int.from_bytes(protocol_bytearray, 'big') # Converte o protocolo para inteiro
-        # checksum_int +=1
-        try:
-            Frame.check_errors(address, control, protocol_bytearray, payload, checksum_int) # Verifica se há erros no quadro
-            ACK = Frame.make_package_escaped(ADDS,CCTRL,protocol_int,bytearray())   # Cria o ACK
-            ACK = Frame.get_package_escaped(ACK)
-            self.link.send(ACK)
-            print("Aqui")
-        except Exception:                  
-            time.sleep(2)  
-            print("Erro no quadro")
-            ACK = Frame.make_package_escaped(ADDS,CCTRL,0,bytearray())   # Cria o ACK
-            ACK = Frame.get_package_escaped(ACK)
-            self.link.send(ACK)
-
-        return payload
+        escaped_package = Frame.get_package_escaped(frame)
+        unescaped_package = Frame.get_package_unescaped(escaped_package)
+        if len(unescaped_package) > 0:
+            # print("unescaped_package:", unescaped_package)
+            address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_package)    # Desencapsula o quadro
+            # print("payload:", payload)
+            protocol_int = int.from_bytes(protocol_bytearray, 'big') # Converte o protocolo para inteiro
+            aux_random = random.randint(0,1)
+            if aux_random == 0:
+                checksum_int +=1
+            try:
+                Frame.check_errors(address, control, protocol_bytearray, payload, checksum_int) # Verifica se há erros no quadro
+                ACK = Frame.make_package_escaped(ADDS,CCTRL,protocol_int,bytearray())   # Cria o ACK
+                self.link.send(ACK)
+                print("Aqui")
+                return payload
+            except Exception:                  
+                # time.sleep(2)  
+                print("Erro no quadro")
+                ACK = Frame.make_package_escaped(ADDS,CCTRL,0,bytearray())   # Cria o ACK
+                self.link.send(ACK)
+                return self.recv() 
+            # return payload
