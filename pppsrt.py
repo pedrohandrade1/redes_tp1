@@ -169,10 +169,14 @@ class PPPSRT:
         aux_protocol = int(self.protocol, 16)                   
         aux_protocol += 1                                       # Incrementa o protocolo
         self.protocol = '{:04x}'.format(aux_protocol)           # Formata como string hexadecimal
-        payload = encodeHex(message)
-        # checksum = ///
-        message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(FLAG, encoding= 'utf-8')#Monta o quadro
-        print(message)
+
+        payload = encodeHex(message)                            # Codifica a mensagem em hexadecimal
+
+        checksum = CheckSum.make(payload)                       # Calcula o checksum
+        checksum = '{:04x}'.format(checksum)                    # Formata como string hexadecimal
+
+        message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(checksum + FLAG, encoding= 'utf-8') #Monta o quadro
+
         # Aqui, PPSRT deve fazer:
         #   - fazer o encapsulamento de cada mensagem em um quadro PPP,
         #   - calcular o Checksum do quadro e incluído,
@@ -180,6 +184,18 @@ class PPPSRT:
         #   - aguardar pela mensagem de confirmação,
         #   - retransmitir a mensagem se a confirmação não chegar.
         self.link.send(message)
+        
+        # while True: # Aguarda a confirmação
+        #     ACK = self.link.recv(1500)
+        #     if ACK[4:6] == bytearray(CCTRL, encoding='utf-8') and ACK[7:11] == bytearray(self.protocol, encoding='utf-8'):
+        #         print(ACK)
+        #         print("Here")
+        #         break
+        #     else:
+        #         print("Retransmitting")
+        #         self.link.send(message)
+        #         break
+
 
 
 
@@ -196,4 +212,8 @@ class PPPSRT:
             frame = self.link.recv(1500)
         except TimeoutError: # use para tratar temporizações
             print("Timeout")
+            
+        # Falta enquadrar o frame pra enviar o ACK do protocolo certo
+        # ACK = bytearray(FLAG + ADDS + CCTRL, encoding = 'utf-8') + frame[7:11] + bytearray(FLAG, encoding= 'utf-8')
+        # self.link.send(ACK)
         return frame
