@@ -23,9 +23,7 @@
 # PPPSRT não pode utilizar a interface de sockets diretamente.
 ################################################################
 
-from operator import le
 import dcc023_tp1
-import binascii
 import random
 import time
 
@@ -34,12 +32,6 @@ ADDS= 0xFF #Address
 DCTRL = 0x03 #Control de dados
 CCTRL = 0x07 #Control de confirmação ACK
 
-
-def encodeHex(message): # caracteres da mensagem para hexadecimal
-    return binascii.hexlify(message)
-
-def decodeHex(message): #  hexadecimal da mensagem para caracteres
-    return binascii.unhexlify(message)
 
 class Frame:
 
@@ -273,7 +265,7 @@ class PPPSRT:
         aux_protocol += 1                                                               # Incrementa o protocolo
         payload = bytearray(message)                                                    # Codifica a mensagem em hexadecimal
         escaped_message = Frame.make_package_escaped(ADDS,DCTRL,aux_protocol,payload)   # Cria o pacote
-        print("escaped_package:", escaped_message)
+        # print("escaped_package:", escaped_message)
 
 
         # message = bytearray(FLAG + ADDS + DCTRL + self.protocol, encoding = 'utf-8') + payload + bytearray(checksum + FLAG, encoding= 'utf-8') #Monta o quadro
@@ -293,7 +285,7 @@ class PPPSRT:
             address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_ACK)
             protocol_int = int.from_bytes(protocol_bytearray, 'big')
 
-            if control == CCTRL and protocol_int == aux_protocol:
+            if control == CCTRL and protocol_int == aux_protocol: # se o protocolo e o controle estiverem corretos
                 print("ACK:",ACK)
                 break
             else: 
@@ -326,17 +318,16 @@ class PPPSRT:
             address, control, protocol_bytearray, payload, checksum_int = Frame.get_package_deconstructed(unescaped_package)    # Desencapsula o quadro
             # print("payload:", payload)
             protocol_int = int.from_bytes(protocol_bytearray, 'big') # Converte o protocolo para inteiro
-            aux_random = random.randint(0,1)
-            if aux_random == 0:
-                checksum_int +=1
+
+            # aux_random = random.randint(0,1) # Simula erro no checksum pra retransmissão
+            # if aux_random == 0:   
+            #     checksum_int +=1 
             try:
                 Frame.check_errors(address, control, protocol_bytearray, payload, checksum_int) # Verifica se há erros no quadro
                 ACK = Frame.make_package_escaped(ADDS,CCTRL,protocol_int,bytearray())   # Cria o ACK
                 self.link.send(ACK)
-                print("Aqui")
                 return payload
-            except Exception:                  
-                # time.sleep(2)  
+            except Exception:        #  Se houver erro, avisa pelo ACK com um protocol 0 e descarta o quadro          
                 print("Erro no quadro")
                 ACK = Frame.make_package_escaped(ADDS,CCTRL,0,bytearray())   # Cria o ACK
                 self.link.send(ACK)
